@@ -61,3 +61,22 @@ grace=$(kubectl get pods <stateful-set-pod> --template '{{.spec.terminationGrace
 kubectl delete statefulset -l app=myapp
 sleep $grace
 kubectl delete pvc -l app=myapp
+
+# additional information to consider
+
+cqlsh --version
+
+kubectl exec -it cassandra-0 -- nodetool status
+kubectl exec -it cassandra-0 cqlsh cassandra
+
+# CQLSH commands to create data
+
+CREATE KEYSPACE covidpapers WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 3};
+CONSISTENCY QUORUM;
+
+CREATE KEYSPACE covidpapers WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'DC1-CovidClstr' : 3};
+
+use covidpapers;
+
+Consistency level set to QUORUM.
+

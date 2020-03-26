@@ -1,0 +1,23 @@
+COPY covidpapers.cases [("id" PRIMARY KEY int,  "province_state" text, "country_region" text, "Lat" float, "Long" float, "Date" date, "Confirmed" float, "Deaths" float, "Recovered" float)] FROM 'covid_19_clean_complete.csv' WITH DELIMITER = ',' AND HEADER=TRUE;
+
+
+COPY cases [(id PRIMARY KEY,  province_state text, country_region text, Lat float, Long float, Date date, Confirmed float, Deaths float, Recovered float)] FROM 'covid_19_clean_complete.csv' STDIN WITH DELIMITER = ',' AND HEADER=TRUE;
+
+
+~/Github/cloud_project_qmul/k8s.cassandra.deployment/
+
+cqlsh --version
+kubectl exec -it cassandra-0 -- nodetool status
+kubectl cp <file from dir> cassandra-0:/<target dir>
+kubectl exec -it cassandra-0 -- bash
+
+
+
+
+kubectl exec -it cassandra-0 cqlsh cassandra
+
+use covidpapers;
+
+create table cases (country_region text, lat float, long float, date date, confirmed float, deaths float, recovered float, PRIMARY KEY (country_region, date));
+
+COPY covidpapers.cases FROM '/files/clean_data.csv' WITH DELIMITER=',' AND HEADER=TRUE;

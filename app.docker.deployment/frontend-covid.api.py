@@ -1,4 +1,5 @@
-from flask import Flask, request
+from flask import *
+import pandas as pd
 from cassandra.cluster import Cluster
 
 # we need to identify the IP of the container for the Cassandra deployment
@@ -11,7 +12,17 @@ app = Flask(__name__)
 def login():
     name = request.args.get("name","World")
     return('<h1>Hello, {}!</h1>'.format(name))
-    
+
+@app.route("/table")
+def show_entries():
+    data = pd.read_json('path/.json')
+    data.set_index(['Name'], inplace=True)
+    data.index.name=None
+    females = data.loc[data.Gender=='f']
+    males = data.loc[data.Gender=='m']
+    return render_template('view.html',tables=[females.to_html(classes='female'), males.to_html(classes='male')],
+    titles = ['na', 'Female surfers', 'Male surfers'])
+
 @app.route('/query/<search_terms>')
 def query(search_terms):
     entries = session.execute("""Select * From covid.database where author = '{}' """.format(search_terms))
