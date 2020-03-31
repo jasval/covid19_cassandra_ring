@@ -63,7 +63,6 @@ kubectl get pods -l="app=cassandra"
 
 kubectl exec -it cassandra-0 -- nodetool status
 
-10.152.183.1
 ## Modifying the Cassandra StatefulSet
 
 kubectl edit statefulset cassandra

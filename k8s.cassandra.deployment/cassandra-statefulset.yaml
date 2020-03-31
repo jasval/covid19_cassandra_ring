@@ -16,6 +16,8 @@ spec:
         app: cassandra
     spec:
       terminationGracePeriodSeconds: 1800
+	  nodeSelector:
+		  app: cassandra
       containers:
       - name: cassandra
         image: gcr.io/google-samples/cassandra:v11
@@ -74,14 +76,14 @@ spec:
           timeoutSeconds: 5
         volumeMounts:
         - name: cassandra-data
-          mountPath: /database # Previous default name /cassandra_data
-  # These are converted to volume claims by the controller
-  # and mounted at the paths mentioned above.
-  # do not use these in production until ssd GCEPersistentDisk or other ssd pd
+          mountPath: /database 
+# Previous default name /cassandra_data
+# These are converted to volume claims by the controller
+# and mounted at the paths mentioned above.
+# do not use these in production until ssd GCEPersistentDisk or other ssd
   volumeClaimTemplates:
   - metadata:
       name: cassandra-data
-	 
     spec:
       accessModes: [ "ReadWriteOnce" ]
       storageClassName: fast
@@ -93,9 +95,6 @@ kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
   name: fast
-provisioner: microk8s.io/aws-ebs
-# provisioner: k8s.io/minikube-hostpath
+provisioner: kubernetes.io/gce-pd
 parameters:
-  type: io1
-  iopsPerGB: "10"
-  fsType: ext4
+  type: pd-ssd
