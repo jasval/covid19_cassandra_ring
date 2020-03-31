@@ -1,14 +1,51 @@
-#Script for initialisation
+# Script for initialisation
 
-##Get minikube and necessary libraries
+$ sudo apt-get update
+$ sudo apt-get upgrade
+$ sudo apt-get install docker.io
 
-sudo apt-get install minikube
+$ sudo apt-get install python3
+$ sudo apt-get install python3-pip
 
+# (Optional) Install all the required packages for installing different Python versions from sources using following command in a Linux machine (Debian-Ubuntu)
+	$ sudo apt install curl git-core gcc make zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libssl-dev
+	## (Optional) step for managing Python versions easily for your project - by installing PyEnv
+	$ git clone https://github.com/pyenv/pyenv.git $HOME/.pyenv
+	## Edit your bash file to set path to .pyenv
+	vim .bashrc
+	## pyenv configs
+		export PYENV_ROOT="$HOME/.pyenv"
+		export PATH="$PYENV_ROOT/bin:$PATH"
 
+		if command -v pyenv 1>/dev/null 2>&1; then
+	 	   eval "$(pyenv init -)"
+		fi
+	# Then restart the shell
+	$ exec "$SHELL"
+	# Install the python versions that you would like to use 
+	$ pyenv install 3.x.x
+	# For further information on how to use pyenv check out this Github https://github.com/pyenv/pyenv
+	
+## Get minikube and necessary libraries
+## Mac OSX - needs minikube to spin a VM in host machine
+sudo apt-get install minikube 
 minikube start --memory 5120 --cpus=4
 
-##Track all cassandra statefulset nodes from cassandra-service.yaml file:
 
+## Linux -> doesnt need a VM
+sudo snap install microk8s --channel=1.18 --classic
+
+## Check microk8s status
+sudo microk8s status
+## Alias microk8s.kubectl to kubectl to simplify calling the tool
+sudo snap alias microk8s.kubectl kubectl
+
+## Check nodes running on the cluster
+sudo kubectl get nodes
+
+## Navigate to the dir where this git directory has been cloned and continue the setup
+
+##Track all cassandra statefulset nodes from cassandra-service.yaml file:
 kubectl apply -f ./cassandra-service.yaml
 
 ##Validate Cassandra service is running 
@@ -26,7 +63,7 @@ kubectl get pods -l="app=cassandra"
 
 kubectl exec -it cassandra-0 -- nodetool status
 
-
+10.152.183.1
 ## Modifying the Cassandra StatefulSet
 
 kubectl edit statefulset cassandra
