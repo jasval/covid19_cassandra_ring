@@ -33,11 +33,11 @@ spec:
           name: cql
         resources:
           limits:
-            cpu: "500m"
-            memory: 1Gi
+            cpu: "250m"
+            memory: 500Mi
           requests:
-            cpu: "500m"
-            memory: 1Gi
+            cpu: "250m"
+            memory: 500Mi
         securityContext:
           capabilities:
             add:
@@ -75,7 +75,7 @@ spec:
           initialDelaySeconds: 15
           timeoutSeconds: 5
         volumeMounts:
-        - name: cassandra-data
+        - name: data
           mountPath: /database 
 # Previous default name /cassandra_data
 # These are converted to volume claims by the controller
@@ -86,15 +86,6 @@ spec:
       name: cassandra-data
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: fast
       resources:
         requests:
-          storage: 200Mi
----
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: fast
-provisioner: kubernetes.io/gce-pd
-parameters:
-  type: pd-ssd
+          storage: 500Mi

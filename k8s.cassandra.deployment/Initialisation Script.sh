@@ -51,6 +51,17 @@ kubectl apply -f ./cassandra-service.yaml
 ##Validate Cassandra service is running 
 kubectl get svc cassandra
 
+## Label the node in which your app is going to run
+kubectl get nodes --show-labels
+
+kubectl label nodes <name_of_node> app=cassandra
+
+kubectl get nodes --show-labels
+
+
+
+microk8s enable ---> Fill with data from tabs
+
 ##Using a StatefulSet to create a Cassandra Ring
 
 kubectl apply -f ./cassandra-statefulset.yaml
