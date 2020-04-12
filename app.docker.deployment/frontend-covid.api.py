@@ -1,7 +1,10 @@
+from time import sleep
+
 from cassandra.query import OperationTimedOut
 from flask import *
 import pandas as pd
 from cassandra.cluster import Cluster, NoHostAvailable
+from datetime import *
 
 # We need to identify the IP of the container for the Cassandra deployment
 # cluster = Cluster(contact_points=[''], port=9042)
@@ -36,8 +39,17 @@ def check_browser():
         return False
 
 
-def data_to_json(formatted_query):
-    json_data = pd.DataFrame()
+def country_exist(country):
+    __query = session.execute("""SELECT * FROM covid.database WHERE ('{}')""".format(country))
+    if __query is not None:
+        return True
+    else:
+        return False
+
+
+def reformat_date(x_date):
+    date_object = datetime.strptime(x_date, '%Y-%m-%d')
+    return date_object.strftime('%Y-%m-%d')
 
 
 @app.route('/', methods=['GET'])
@@ -78,16 +90,67 @@ def show_all_entries():
     #                      titles=['na', 'Female surfers', 'Male surfers'])
 
 
-@app.route('/<country>/', methods=['GET'])
+@app.route('/hist/<country>/', methods=['GET'])
 def query(country):
-    entries = session.execute("""SELECT * FROM covid.database WHERE country_region in ('{}') """.format(country))
+    try:
+        if check_browser() is True:
+            __query = session.execute(
+                """SELECT * FROM covid.database WHERE country_region in ('{}') """.format(country))
+            table = data_getter(__query)
+            return render_template('result.html', tables=[table.to_html(classes='data', header="true")]), 200
+        else:
+            __query = """SELECT JSON * FROM covid.database WHERE country_region in ('{}');""".format(country)
+            json_data = session.execute(__query, timeout=None)
+            return json_data, 200
+    except NoHostAvailable:
+        print("The host is not available"), 408
+    except OperationTimedOut:
+        print("The communication with host time out."), 408
+    except Exception as ex:
+        print(ex.args), 418
 
-    for entry in entries:
-        return '<h1> ... </h1>', 200
 
-    # Better if we save the information in a table and then output it in the webpage
+@app.route('/post/<country>/<new_confirmed>-<new_deaths>-<new_recovered>', methods=['GET', 'POST'])
+def post_data(country, new_confirmed, new_deaths, new_recovered):
+    try:
+        if country_exist(country) is False:
+            return print("That country doesn't exist"), 404
+        if check_browser() is True:
+            latest_entry = session.execute(
+                """SELECT * FROM covid.database WHERE country_region in ('{}') ORDER BY date DESC LIMIT 1""".format(
+                    country))
+            confirmed = latest_entry.confirmed + new_confirmed
+            deaths = latest_entry.deaths + new_deaths
+            recovered = latest_entry.recovered + new_recovered
+            today = date.today().strftime("%Y-%m-%d")
+            try:
+                session.execute("""INSERT INTO covid.database (country_region, date, confirmed, deaths, lat, long, recovered)
+                            VALUES ('{}', '{}', '{}', '{}', '{}');""".format(country, today, confirmed, deaths,
+                                                                             recovered))
+                sleep(1)
+                latest_entry = session.execute(
+                    """SELECT * FROM covid.database WHERE country_region in ('{}') ORDER BY date DESC LIMIT 1""".format(
+                        country))
+                return latest_entry, 201
+            except Exception as ex:
+                print(ex.args), 406
+    except Exception as ex:
+        print(ex.args), 418
 
-    return '<h1>That author does not exist!</h1>'
+
+@app.route('/delete/<date_entry>/<country>', methods=['DELETE'])
+def delete_entry(date_entry, country):
+    date_entry = reformat_date(date_entry)
+    if country_exist(country) is True:
+        try:
+            __query = session.execute(
+                """DELETE * FROM covid.database WHERE country_region in ('{}') AND date == ('{}');""".format(country,
+                                                                                                             date_entry))
+            return jsonify("Entry deleted"), 200
+        except Exception as ex:
+            print(ex.args), 400
+    else:
+        return jsonify("Entry not found"), 404
 
 
 if __name__ == '__main__':
