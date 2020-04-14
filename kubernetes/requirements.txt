@@ -1,0 +1,8 @@
+cassandra-driver==3.22.0
+click==7.1.1
+cql==1.4.0
+cqlsh==5.0.4
+futures==3.3.0
+geomet==0.1.2
+six==1.14.0
+thrift==0.13.0

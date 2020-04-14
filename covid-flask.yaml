@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: covid-deployment
+  labels:
+    app: covid-flask
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: covid-flask
+  template:
+    metadata:
+      labels:
+        app: covid-flask
+    spec:
+      terminationGracePeriodSeconds: 1800
+      containers:
+      - name: covid-flask
+        image: registry.hub.docker.com/jsaldanav/flask-cassandra:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: main
+ 
+
