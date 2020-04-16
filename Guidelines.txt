@@ -15,8 +15,7 @@ kubectl exec -it cassandra-0 cqlsh cassandra
 
 use covid;
 
-create table covid.cases (country_region text, lat float, long float, date date, confirmed float, deaths float, recovered float, PRIMARY KEY (country_region, date)) WITH CLUSTERING ORDER BY (date DESC);
+CREATE TABLE covid.cases (Country text, Date date, Confirmed int, Deaths int, Recovered int, PRIMARY KEY (Country, Date)) WITH CLUSTERING ORDER BY (date DESC);
 
-COPY covid.cases FROM '/files/clean_data.csv' WITH DELIMITER=',' AND HEADER=TRUE;
 
 CREATE TABLE index (country_region text, lat float, long float, PRIMARY KEY (country_region))

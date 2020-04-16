@@ -1,11 +1,13 @@
+import json
 import os
 import bisect
 import re
 from datetime import *
+from time import sleep
 
 import requests
 from cassandra.cluster import Cluster, NoHostAvailable
-from cassandra.query import OperationTimedOut
+from cassandra.query import OperationTimedOut, BatchStatement, ConsistencyLevel
 from flask import Flask, abort, request, jsonify, g, url_for
 from passlib.apps import custom_app_context as pwd_context
 from flask_sqlalchemy import SQLAlchemy
@@ -18,6 +20,7 @@ app.config['SECRET_KEY'] = 'she call me mr boombastic'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 # Define connection parameters to access a Cassandra Ring deployed in Kubernetes
 cluster = Cluster(['192.168.64.4'], port=30007)
@@ -26,8 +29,8 @@ session = cluster.connect(wait_for_all_pools=True)
 db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 
-# A list used to locally store the name of the countries available to lookup.
-country_list = []
+# Dict used to locally store the name of the countries and their corresponding slugs for fast lookup.
+country_dict = {}
 
 
 # Definition of a User model class to store in in our sqlite database.
@@ -72,12 +75,8 @@ def date_format_checker(x):
 
 # ------------- THIS METHOD CAN BE DELETED LATER AFTER REFACTORING! --------------------
 
-def country_exist(country):
-    countries = []
-    results = session.execute("""SELECT DISTINCT country_region FROM covid.cases;""")
-    for entry in results:
-        bisect.insort(countries, entry.country_region)
-    if country not in countries:
+def country_exist(slug):
+    if slug not in country_dict[slug]:
         return False
     else:
         return True
@@ -94,8 +93,10 @@ def clean_country(country):
 
 
 def reformat_date(x_date):
-    date_object = datetime.strptime(x_date, '%Y-%m-%d')
-    return date_object
+    char_position = x_date.find('T')
+    if char_position != -1:
+        x_date = x_date[: char_position]
+    return x_date
 
 
 @auth.verify_password
@@ -112,7 +113,7 @@ def verify_password(user_name_token, password):
 
 
 @app.route('/', methods=['GET'])
-def index():
+def welcome():
     name = "Data Scientist or Curious User"
     return (
                '<h1>Hello, {}!</h1> </br> <p> This is an API offering the latest figures of COVID-19 Contagion accross the globe</p>'.format(
@@ -150,169 +151,212 @@ def get_auth_token():
 
 
 @app.route('/index', methods=['GET'])
-def get_latest():
+def init_index():
     template = 'https://api.covid19api.com/countries'
-    if not country_list:
+    if not country_dict:
         resp = requests.get(template)
         if resp.ok:
             resp = resp.json()
             for x in resp:
-                bisect.insort(country_list, x['Country'])
-            return jsonify(country_list), 200
-        else:
-            return jsonify('Server side error'), 500
+                country_dict[x['Slug']] = x['Country']
+            return jsonify(sorted(country_dict)), 200
+    return jsonify(sorted(country_dict)), 200
+
+
+@app.route('/initialise', methods=['GET', 'POST'])
+@auth.login_required
+def init():
+    ans = session.execute('SELECT * FROM covid.cases LIMIT 1').one()
+    init_index()
+    if ans is None:
+        insert_entry = session.prepare(
+            'INSERT INTO covid.cases (country, date, confirmed, deaths, recovered) VALUES (?, ?, ?, ?, ?)')
+        template = 'https://api.covid19api.com/total/dayone/country/{name}'
+        amount = 0
+        for slug in country_dict:
+            resp = requests.get(template.format(name=slug))
+            if resp.ok:
+                data = resp.json()
+                batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
+                for entry in data:
+                    amount += 1
+                    formatted_date = reformat_date(entry['Date'])
+                    try:
+                        # print(entry['Country'] + "  " + str(entry['Date']))
+                        batch.add(insert_entry, (
+                            entry['Country'], formatted_date, entry['Confirmed'], entry['Deaths'],
+                            entry['Recovered']))
+                    except Exception as e:
+                        print('Cassandra error: {}'.format(e))
+                try:
+                    print(str(len(data)) + "  " + country_dict[slug])
+                    session.execute(batch)
+                except Exception as e:
+                    print('Cassandra error: {}'.format(e))
+        print(amount)
+        return jsonify('The database has been populated with the latest up to date COVID cases worldwide'), 201
     else:
-        return jsonify(country_list), 200
+        return jsonify('Table has already been initialised'), 208
 
 
 @app.route('/latest', methods=['GET'])
 def show_latest_entries():
-    countries_str = ""
-    results = session.execute("""SELECT DISTINCT country_region FROM covid.cases;""")
-    for entry in results:
-        clean = clean_country(entry.country_region)
-        countries_str += clean + ", "
     __query = (
-        """SELECT country_region, date, confirmed, deaths, recovered FROM covid.cases PER PARTITION LIMIT 1;""".format(
-            countries_str))
-    result_set = session.execute(__query, timeout=800)
+        """SELECT * FROM covid.cases PER PARTITION LIMIT 1;""")
+    result_set = session.execute(__query, timeout=800).all()
     results = []
     for entry in result_set:
-        results.append({"Country": entry.country_region, "Date": str(entry.date), "confirmed": entry.confirmed,
-                        "deaths": entry.deaths,
-                        "recovered": entry.recovered})
-    results.sort()
-    return jsonify(results), 200
+        results.append({".Country": entry.country, ".Date": str(entry.date), "Confirmed": entry.confirmed,
+                        "Deaths": entry.deaths,
+                        "Recovered": entry.recovered})
+    sorted_results = sorted(results, key=lambda x: x['Country'])
+    return jsonify(sorted_results), 200
 
 
-# noinspection PyBroadException
-@app.route('/countries', methods=['GET'])
-def show_all_countries():
-    countries = []
-    try:
-        results = session.execute("""SELECT DISTINCT country_region FROM covid.cases;""")
-        for entry in results:
-            bisect.insort(countries, entry.country_region)
-        return jsonify(countries), 200
-    except NoHostAvailable:
-        jsonify({'The host is not available'}), 408
-    except OperationTimedOut:
-        jsonify({'The communication with host timed out'}), 408
-    except Exception as ex:
-        jsonify({ex.args}), 418
+# # noinspection PyBroadException
+# @app.route('/countries', methods=['GET'])
+# def show_all_countries():
+#     countries = []
+#     try:
+#         results = session.execute("""SELECT DISTINCT country_region FROM covid.cases;""")
+#         for entry in results:
+#             bisect.insort(countries, entry.country_region)
+#         return jsonify(countries), 200
+#     except NoHostAvailable:
+#         jsonify({'The host is not available'}), 408
+#     except OperationTimedOut:
+#         jsonify({'The communication with host timed out'}), 408
+#     except Exception as ex:
+#         jsonify({ex.args}), 418
 
 
-@app.route('/<country>', methods=['GET'])
-def query_country(country):
-    if country_exist(country) is False:
-        return jsonify('That country doesn\'t exist'), 404
-    else:
+@app.route('/country/<slug>', methods=['GET'])
+def query_country(slug):
+    init_index()
+    if slug in country_dict:
         try:
-            __query = """SELECT * FROM covid.cases WHERE country_region in ('{}');""".format(country)
+            __query = """SELECT * FROM covid.cases WHERE country in ('{}');""".format(country_dict[slug])
             entry = session.execute(__query, timeout=500).one()
-            return jsonify({"Country": entry.country_region, "Date": str(entry.date), "confirmed": entry.confirmed,
-                            "deaths": entry.deaths,
-                            "recovered": entry.recovered}), 200
+            return jsonify({".Country": entry.country, ".Date": str(entry.date), "Confirmed": entry.confirmed,
+                            "Deaths": entry.deaths,
+                            "Recovered": entry.recovered}), 200
         except NoHostAvailable:
-            jsonify({'The host is not available'}), 408
+            return jsonify('The host is not available'), 408
         except OperationTimedOut:
-            jsonify({'The communication with host timed out'}), 408
+            return jsonify('The communication with host timed out'), 408
         except Exception as ex:
-            jsonify({ex.args}), 418
-
-
-@app.route('/<country>/s', methods=['GET'])
-def query_country_voice(country):
-    if country_exist(country) is False:
-        return jsonify('That country doesn\'t exist'), 404
+            return jsonify('Something else went wrong!  ' + str(ex.args)), 418
     else:
-        try:
-            __query = """SELECT * FROM covid.cases WHERE country_region in ('{}');""".format(country)
-            entry = session.execute(__query, timeout=500).one()
-            return jsonify({"Country": entry.country_region, "Date": str(entry.date), "confirmed": entry.confirmed,
-                            "deaths": entry.deaths,
-                            "recovered": entry.recovered}), 200
-        except NoHostAvailable:
-            jsonify({'The host is not available'}), 408
-        except OperationTimedOut:
-            jsonify({'The communication with host timed out'}), 408
-        except Exception as ex:
-            jsonify({ex.args}), 418
-
-
-@app.route('/hist/<country>', methods=['GET'])
-def query(country):
-    if country_exist(country) is False:
         return jsonify('That country doesn\'t exist'), 404
-    else:
+
+
+@app.route('/hist/country/<slug>', methods=['GET'])
+def query(slug):
+    init_index()
+    if slug in country_dict:
         try:
-            __query = """SELECT * FROM covid.cases WHERE country_region in ('{}');""".format(country)
-            json_data = session.execute(__query, timeout=500)
+            __query = """SELECT * FROM covid.cases WHERE country in ('{}');""".format(country_dict[slug])
+            json_data = session.execute(__query, timeout=500).all()
             results = []
             for entry in json_data:
                 results.append(
-                    {"Country": entry.country_region, "Date": str(entry.date), "confirmed": entry.confirmed,
-                     "deaths": entry.deaths,
-                     "recovered": entry.recovered})
+                    {".Country": entry.country, ".Date": str(entry.date), "Confirmed": entry.confirmed,
+                     "Deaths": entry.deaths,
+                     "Recovered": entry.recovered})
             return jsonify(results), 200
         except NoHostAvailable:
-            jsonify({'The host is not available'}), 408
+            return jsonify('The host is not available'), 408
         except OperationTimedOut:
-            jsonify({'The communication with host timed out'}), 408
+            return jsonify('The communication with host timed out'), 408
         except Exception as ex:
-            jsonify({ex.args}), 418
-
-
-@app.route('/post/<country>/<new_confirmed>/<new_deaths>/<new_recovered>', methods=['GET', 'POST'])
-@auth.login_required
-def post_data(country, new_confirmed, new_deaths, new_recovered):
-    if country_exist(country) is False:
+            return jsonify('Something else went wrong!  ' + str(ex.args)), 418
+    else:
         return jsonify('That country doesn\'t exist'), 404
-    else:
-        latest_entry = session.execute(
-            """SELECT * FROM covid.cases WHERE country_region in ('{}') LIMIT 1;""".format(
-                country)).one()
-        date = datetime.now().strftime("%Y-%m-%d")
-        if str(latest_entry.date) == str(date):
-            return jsonify('There is already an entry for today!'), 409
-        else:
-            confirmed = float(latest_entry.confirmed) + float(new_confirmed)
-            deaths = float(latest_entry.deaths) + float(new_deaths)
-            recovered = float(latest_entry.recovered) + float(new_recovered)
-            lat = float(latest_entry.lat)
-            long = float(latest_entry.long)
-            try:
-                session.execute(
-                    """INSERT INTO covid.cases(country_region, date, confirmed, deaths, lat, long, recovered) VALUES('{}','{}',{},{},{},{},{})""".format(
-                        str(country), date, float(confirmed), float(deaths), float(lat), float(long), float(recovered)))
-                return jsonify(
-                    'Ok, updated {} and the current metrics are... Confirmed cases: {} Deaths: {} Recovered cases: {}'.format(
-                        country, confirmed, deaths, recovered)), 201
-            except Exception:
-                return jsonify('There was a problem submitting your query!'), 500
 
 
-@app.route('/delete/<country>/<date_entry>', methods=['GET', 'DELETE'])
+@app.route('/update/<slug>', methods=['GET', 'POST'])
 @auth.login_required
-def delete_date_entry(country, date_entry):
-    if country_exist(country) is True:
-        if date_format_checker(date_entry) is True:
-            try:
-                __query = session.execute(
-                    """DELETE FROM covid.cases WHERE country_region in ('{}') AND date IN ('{}');""".format(country,
-                                                                                                            date_entry))
-                return jsonify("Entry deleted"), 200
-            except Exception:
-                return jsonify("There was a problem deleting the entry."), 500
+def update_data(slug):
+    init_index()
+    if slug in country_dict:
+        insert_entry = session.prepare('INSERT INTO covid.cases (country, date, confirmed, deaths, recovered) VALUES (?, ?, ?, ?, ?)')
+        template = 'https://api.covid19api.com/total/country/{name}'
+        resp = requests.get(template.format(name=slug))
+        if resp.ok:
+            last_entry = session.execute(
+                """SELECT * FROM covid.cases WHERE country in ('{}') LIMIT 1;""".format(country_dict[slug])).one()
+            data = resp.json()
+            for entry in data:
+                entry['Date'] = reformat_date(entry['Date'])
+            # temp_dict = json.loads(data)
+            output_dict = [x for x in data if x['Date'] > str(last_entry.date)]
+            # data = json.dumps(output_dict)
+            batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
+            for entry in output_dict:
+                batch.add(insert_entry, (entry['Country'], entry['Date'], entry['Confirmed'], entry['Deaths'], entry['Recovered']))
+            session.execute(batch)
+            return jsonify('Entries from {} are now up to date'.format(country_dict[slug])), 200
         else:
-            return jsonify('Date badly formated... please format date correctly YYYY-MM-DD'), 400
+            return jsonify('There has been a problem'), 500
     else:
-        return jsonify("Country not found."), 404
+        return jsonify('That country doesn\'t exist'), 404
+    #
+    #     latest_entry = session.execute(
+    #         """SELECT * FROM covid.cases WHERE country_region in ('{}') LIMIT 1;""".format(
+    #             country)).one()
+    #     date = datetime.now().strftime("%Y-%m-%d")
+    #     if str(latest_entry.date) == str(date):
+    #         return jsonify('There is already an entry for today!'), 409
+    #     else:
+    #         confirmed = float(latest_entry.confirmed) + float(new_confirmed)
+    #         deaths = float(latest_entry.deaths) + float(new_deaths)
+    #         recovered = float(latest_entry.recovered) + float(new_recovered)
+    #         lat = float(latest_entry.lat)
+    #         long = float(latest_entry.long)
+    #         try:
+    #             session.execute(
+    #                 """INSERT INTO covid.cases(country_region, date, confirmed, deaths, lat, long, recovered) VALUES('{}','{}',{},{},{},{},{})""".format(
+    #                     str(country), date, float(confirmed), float(deaths), float(lat), float(long), float(recovered)))
+    #             return jsonify(
+    #                 'Ok, updated {} and the current metrics are... Confirmed cases: {} Deaths: {} Recovered cases: {}'.format(
+    #                     country, confirmed, deaths, recovered)), 201
+    #         except Exception:
+    #             return jsonify('There was a problem submitting your query!'), 500
+    # else:
+    #     return jsonify('That country doesn\'t exist'), 404
+
+
+@app.route('/update', methods=['GET', 'POST'])
+@auth.login_required
+def update_all_data():
+    init_index()
+    insert_entry = session.prepare('INSERT INTO covid.cases (country, date, confirmed, deaths, recovered) VALUES (?, ?, ?, ?, ?)')
+    template = 'https://api.covid19api.com/total/country/{name}'
+    for slug in country_dict:
+        resp = requests.get(template.format(name=slug))
+        if resp.ok:
+            last_entry = session.execute(
+                """SELECT * FROM covid.cases WHERE country in ('{}') LIMIT 1;""".format(country_dict[slug])).one()
+            data = resp.json()
+            for entry in data:
+                entry['Date'] = reformat_date(entry['Date'])
+            # temp_dict = json.loads(data)
+            output_dict = [x for x in data if x['Date'] > str(last_entry.date)]
+            # data = json.dumps(output_dict)
+            batch = BatchStatement(consistency_level=ConsistencyLevel.QUORUM)
+            for entry in output_dict:
+                country_name = clean_country(entry['Country'])
+                batch.add(insert_entry, (country_name, entry['Date'], entry['Confirmed'], entry['Deaths'], entry['Recovered']))
+            session.execute(batch)
+        else:
+            return jsonify('There has been a problem'), 500
+    return jsonify('Entries from all countries are now up to date'.format(country_dict[slug])), 200
 
 
 @app.route('/delete/<country>/today', methods=['GET', 'DELETE'])
 @auth.login_required
 def delete_today_entry(country):
+    init_index()
     if country_exist(country) is True:
         try:
             date_entry = datetime.now().strftime("%Y-%m-%d")
@@ -329,6 +373,7 @@ def delete_today_entry(country):
 @app.route('/delete/<country>', methods=['GET', 'DELETE'])
 @auth.login_required
 def delete_recent_entry(country):
+    init_index()
     if country_exist(country) is True:
         try:
             __query = session.execute(
@@ -346,6 +391,7 @@ def delete_recent_entry(country):
 @app.route('/edit/<country>/<date_entry>', methods=['PUT'])
 @auth.login_required
 def update_entry(country, date_entry):
+    init_index()
     if country_exist(country) is False:
         return jsonify("Country not found"), 404
     confirmed = request.json.get('confirmed')
