@@ -1,0 +1,21 @@
+
+
+cqlsh --version
+kubectl exec -it cassandra-0 -- nodetool status
+kubectl cp <file from dir> cassandra-0:/<target dir>
+kubectl exec -it cassandra-0 -- bash
+
+kubectl exec -it cassandra-0 -- bash
+mkdir files && exit
+kubectl cp clean_data.csv cassandra-0:/files/
+
+
+
+kubectl exec -it cassandra-0 cqlsh cassandra
+
+use covid;
+
+CREATE TABLE covid.cases (Country text, Date date, Confirmed int, Deaths int, Recovered int, PRIMARY KEY (Country, Date)) WITH CLUSTERING ORDER BY (date DESC);
+
+
+CREATE TABLE index (country_region text, lat float, long float, PRIMARY KEY (country_region))

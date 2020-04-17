@@ -1,0 +1,6 @@
+requests
+passlib
+itsdangerous
+pip
+Flask
+cassandra-driver
