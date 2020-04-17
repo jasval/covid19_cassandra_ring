@@ -28,7 +28,6 @@ $ sudo apt-get install python3-pip
 	
 ## Get minikube and necessary libraries
 ## Mac OSX - needs minikube to spin a VM in host machine
-sudo apt-get install minikube 
 minikube start --memory 5120 --cpus=4
 
 
