@@ -205,7 +205,7 @@ def show_latest_entries():
         results.append({".Country": entry.country, ".Date": str(entry.date), "Confirmed": entry.confirmed,
                         "Deaths": entry.deaths,
                         "Recovered": entry.recovered})
-    sorted_results = sorted(results, key=lambda x: x['Country'])
+    sorted_results = sorted(results, key=lambda x: x['.Country'])
     return jsonify(sorted_results), 200
 
 
@@ -415,4 +415,4 @@ def update_entry(date_entry, slug):
 if __name__ == '__main__':
     if not os.path.exists('db.sqlite'):
         db.create_all()
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=80, debug=True)

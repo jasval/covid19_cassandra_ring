@@ -1,7 +1,7 @@
 # Running a Cassandra Cluster and API to store COVID-19 data
 
 ## Want to learn how this project was built?
--- Blog post will be available from 21:00 on April 17, 2020 ---
+-- Blog post will be available from 21:00 on April 19, 2020 ---
 
 ## Want to use and deploy the project?
 ### Kubernetes
@@ -23,21 +23,33 @@ minikube dashboard
 #### Installation Linux (Snaps)
 Install Python 3 and Pip 3 if you are still using Python 2:
 ```
-sudo apt-get install python3
-sudo apt-get install python3-pip
+sudo apt update
+sudo apt upgrade
+sudo apt install python3
+sudo apt install python3-pip
+```
+Install required python-packages:
+```
+pip3 install -r requirements.txt
 ```
 Install kubernetes using [Snapcraft](https://snapcraft.io/):
 ```
 sudo snap install microk8s --channel=1.18 --classic
 ```
-(Recommended) Steps to avoid using sudo constantly when using kubernetes:
+(Recommended) Steps to avoid using sudo constantly when using kubernetes(we reboot the system to ensure):
 ```
 sudo usermod -a -G microk8s ubuntu
 sudo chown -f -R ubuntu ~/.kube
 ```
+Start kubernetes and alias kubectl:
+```
+microk8s start
+microk8s status
+sudo snap alias microk8s.kubectl kubectl
+```
 Enabling kubernetes addons:
 ```
-microk8s enable fluentd dns storage
+microk8s enable storage fluentd dns
 ```
 ##### (Optional) Using PyEnv:
 Installing all the required packages in order to use [pyenv](https://github.com/pyenv/pyenv) in your project:
@@ -118,7 +130,7 @@ kubectl exec -it cassandra-0 -- nodetool status
 ```
 Enter the environment:
 ```
-kubectl exec -it cassandra-o -- cqlsh
+kubectl exec -it cassandra-0 -- cqlsh
 ```
 Execute the following commands:
 ```
@@ -131,7 +143,7 @@ CREATE TABLE covid.cases (Country text, Date date, Confirmed int, Deaths int, Re
 ### Flask
 #### Installing requirements for running your python app
 ```
-pip install -U -r requirements.txt
+pip3 install -U -r requirements.txt
 ```
 **(Optional) If you want to deploy the app as a docker container alongside your Cassandra Cluster I also included a Dockerfile for you to build your own**
 
@@ -142,7 +154,7 @@ kubectl get nodes -o wide
 ```
 Everything set. Cross your fingers and run the app!
 ```
-python app.py
+sudo python3 app.py
 ```
 ## Using the API
 ### Registering new users
