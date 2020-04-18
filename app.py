@@ -253,7 +253,7 @@ def query(slug):
         return jsonify('That country doesn\'t exist'), 404
 
 
-@app.route('/update/<slug>', methods=['GET', 'POST'])
+@app.route('/update/<slug>', methods=['POST'])
 @auth.login_required
 def update_data(slug):
     init_index()
@@ -281,7 +281,7 @@ def update_data(slug):
         return jsonify('That country doesn\'t exist'), 404
 
 
-@app.route('/update', methods=['GET', 'POST'])
+@app.route('/update', methods=['POST'])
 @auth.login_required
 def update_all_data():
     init_index()

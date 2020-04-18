@@ -97,7 +97,7 @@ kubectl delete service flask
 ```
 Deleting a StatefulSet through kubectl will scale it down to 0, thereby deleting all pods that are a part of it. If you want to delete just the StatefulSet and not the pods, use --cascade=false:
 ```
-kubectl delete -f <file.yaml> --cascade=false
+kubectl delete -f cassandra-statefulset.yaml --cascade=false
 ```
 By passing --cascade=false to kubectl delete, the Pods managed by the StatefulSet are left behind even after the StatefulSet object itself is deleted. If the pods have a label app=myapp, you can then delete them as follows:
 ```
@@ -143,4 +143,72 @@ kubectl get nodes -o wide
 Everything set. Cross your fingers and run the app!
 ```
 python app.py
+```
+## Using the API
+### Registering new users
+To register new users you send a JSON object with a POST request to store a username and a password, to have more functionality in your end. (This can be improved by using groups and setting permissions for different users, or to set up additional measures in the cassandra database)
+```
+curl -i -H "Content-Type: application/json" -X POST -d '{"username":"your-username", "password":"your-password"}' http://<url-of-your-host>:5000/register
+```
+Getting tokens to avoid sending your username and password with every request that requires authentication:
+```
+curl -u <your-username>:<your-password> -i -X GET <url-of-your-host>:5000/api/token
+```
+### Initialisation (Requires Authentication)
+To initialise and populate our database with up-to-date COVID data:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/initialise
+```
+### Requests 
+#### GET (No Authentication Required)
+Getting index of available countries to query:
+```
+curl -i -X GET <url-of-your-host>:5000/index
+```
+Getting latest numbers for all the countries that there is data in our database:
+```
+curl -i -X GET <url-of-your-host>:5000/latest
+```
+Getting latest numbers for a particular country:
+```
+curl -i -X GET <url-of-your-host>:5000/country/<queried-country>
+```
+Getting all records stored in the database for a particular country:
+```
+curl -i -X GET <url-of-your-host>:5000/hist/country/<queried-country>
+```
+### POST (Authentication Required)
+Update the records of all countries with information pulled from the external API:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/update
+```
+Update the records of the specified country:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/update/<queried-country>
+```
+### DELETE (Authentication Required)
+Delete the most recent records of all countries in the database:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/recent
+```
+Delete the most recent record for a particular country:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/recent/<queried-country>
+```
+Delete the "today" record of a particular country:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/today/<queried-country>
+```
+Delete all records from a particular date:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/<entry-date>
+```
+Delete the records from a country from a particular date:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/<entry-date>/<queried-country>
+```
+### UPDATE (Authentication Required)
+Edit the records of a country at a particular date:
+```
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X PUT <url-of-your-host>:5000/edit/<date-entry>/<queried-country>
 ```
