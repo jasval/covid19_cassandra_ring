@@ -160,67 +160,67 @@ sudo python3 app.py
 ### Registering new users
 To register new users you send a JSON object with a POST request to store a username and a password, to have more functionality in your end. (This can be improved by using groups and setting permissions for different users, or to set up additional measures in the cassandra database)
 ```
-curl -i -H "Content-Type: application/json" -X POST -d '{"username":"your-username", "password":"your-password"}' http://<url-of-your-host>:5000/register
+curl -i -H "Content-Type: application/json" -X POST -d '{"username":"your-username", "password":"your-password"}' http://<url-of-your-host>/register
 ```
 Getting tokens to avoid sending your username and password with every request that requires authentication:
 ```
-curl -u <your-username>:<your-password> -i -X GET <url-of-your-host>:5000/api/token
+curl -u <your-username>:<your-password> -i -X GET <url-of-your-host>/api/token
 ```
 ### Initialisation (Requires Authentication)
 To initialise and populate our database with up-to-date COVID data:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/initialise
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>/initialise
 ```
 ### Requests 
 #### GET (No Authentication Required)
 Getting index of available countries to query:
 ```
-curl -i -X GET <url-of-your-host>:5000/index
+curl -i -X GET <url-of-your-host>/index
 ```
 Getting latest numbers for all the countries that there is data in our database:
 ```
-curl -i -X GET <url-of-your-host>:5000/latest
+curl -i -X GET <url-of-your-host>/latest
 ```
 Getting latest numbers for a particular country:
 ```
-curl -i -X GET <url-of-your-host>:5000/country/<queried-country>
+curl -i -X GET <url-of-your-host>/country/<queried-country>
 ```
 Getting all records stored in the database for a particular country:
 ```
-curl -i -X GET <url-of-your-host>:5000/hist/country/<queried-country>
+curl -i -X GET <url-of-your-host>/hist/country/<queried-country>
 ```
 ### POST (Authentication Required)
 Update the records of all countries with information pulled from the external API:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/update
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>/update
 ```
 Update the records of the specified country:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>:5000/update/<queried-country>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X POST <url-of-your-host>/update/<queried-country>
 ```
 ### DELETE (Authentication Required)
 Delete the most recent records of all countries in the database:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/recent
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>/delete/recent
 ```
 Delete the most recent record for a particular country:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/recent/<queried-country>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>/delete/recent/<queried-country>
 ```
 Delete the "today" record of a particular country:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/today/<queried-country>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>/delete/today/<queried-country>
 ```
 Delete all records from a particular date:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/<entry-date>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>/delete/<entry-date>
 ```
 Delete the records from a country from a particular date:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>:5000/delete/<entry-date>/<queried-country>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -X DELETE <url-of-your-host>/delete/<entry-date>/<queried-country>
 ```
 ### UPDATE (Authentication Required)
 Edit the records of a country at a particular date:
 ```
-curl -u (<your-username>:<your-password> OR <your-token>) -i -X PUT <url-of-your-host>:5000/edit/<date-entry>/<queried-country>
+curl -u (<your-username>:<your-password> OR <your-token>) -i -H "Content-Type: application/json" -X PUT -d '{"confirmed": x_cases_, "deaths": x_cases_, "recovered": x_cases_}' <url-of-your-host>/edit/<date-entry>/<queried-country>
 ```
