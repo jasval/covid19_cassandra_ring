@@ -1,7 +1,7 @@
 # Running a Cassandra Cluster and API to store COVID-19 data
 
 ## Want to learn how this project was built?
--- Blog post will be available from 21:00 on April 19, 2020 ---
+-- Blog post will be available from 21:00 on April 20, 2020 ---
 
 ## Want to use and deploy the project?
 ### Kubernetes
